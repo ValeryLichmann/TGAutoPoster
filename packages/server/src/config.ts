@@ -25,6 +25,8 @@ export const config = {
     AI_MODE: process.env.AI_MODE,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL,
   },
