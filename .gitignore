@@ -19,6 +19,7 @@ build/
 packages/server/prisma/dev.db*
 
 # logs
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
