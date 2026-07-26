@@ -1,0 +1,121 @@
+// Production data model for TGAutoPoster.
+// The running server currently uses an in-memory Store (src/store.ts) so it
+// boots with zero setup; this schema is the intended persistence layer. Swap the
+// Store for a Prisma-backed repository and run `prisma migrate` to adopt it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Dev: SQLite. Production: set DATABASE_URL to a Postgres URL and change to
+  // provider = "postgresql".
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id // Telegram user id
+  displayName String
+  isAdmin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  entitlement Entitlement?
+  channels    Channel[]
+  contact     ContactMessage[]
+}
+
+model Entitlement {
+  userId         String   @id
+  plan           String   @default("trial") // trial | free | pro
+  trialStartedAt DateTime
+  trialEndsAt    DateTime
+  proUntil       DateTime?
+  usedToday      Int      @default(0)
+  quotaResetAt   DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Channel {
+  id        String   @id // Telegram channel id
+  title     String
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  // Latest analysis snapshot, stored as JSON (see @tgap/shared ChannelAnalysis).
+  analysisJson String?
+
+  owner   User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  sources Source[]
+  slots   SlotConfig[]
+  drafts  PostDraft[]
+
+  @@index([ownerId])
+}
+
+model Source {
+  id         String   @id @default(cuid())
+  channelId  String
+  kind       String
+  title      String
+  url        String
+  origin     String // ai_guessed | ai_investigated | user_added
+  approved   Boolean  @default(false)
+  prompt     String   @default("")
+  rationale  String   @default("")
+  confidence Float    @default(0.5)
+  createdAt  DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+}
+
+model SlotConfig {
+  slotId          String  @id
+  channelId       String
+  enabled         Boolean @default(true)
+  postType        String
+  cadence         String
+  stylePrompt     String
+  withImage       Boolean @default(true)
+  imageStylePrompt String @default("")
+  sourceIdsJson   String  @default("[]")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+}
+
+model PostDraft {
+  id               String   @id @default(cuid())
+  channelId        String
+  slotId           String?
+  postType         String
+  text             String
+  imageUrl         String?
+  imagePrompt      String?
+  generationPrompt String   @default("")
+  sourceIdsJson    String   @default("[]")
+  status           String   // generating | pending | approved | edited | declined | published | failed
+  scheduledFor     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, status])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  text      String
+  answered  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

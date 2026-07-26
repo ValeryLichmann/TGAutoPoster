@@ -1,0 +1,19 @@
+{
+  "name": "tgautoposter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered posting assistant for Telegram channel owners — analytics, schedule prediction, source discovery, and a native Mini App.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev:server": "pnpm --filter @tgap/server dev",
+    "dev:miniapp": "pnpm --filter @tgap/miniapp dev",
+    "lint": "echo \"(configure eslint per package)\""
+  },
+  "packageManager": "pnpm@10.0.0"
+}
