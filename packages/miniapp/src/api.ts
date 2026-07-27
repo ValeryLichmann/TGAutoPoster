@@ -1,6 +1,7 @@
 import type {
   AdminStats,
   ChannelAnalysis,
+  ChannelSettings,
   MeResponse,
   PostDraft,
   SlotConfig,
@@ -45,6 +46,22 @@ export const api = {
   deleteSource: (sid: string) => req<{ ok: boolean }>(`/api/sources/${sid}`, { method: "DELETE" }),
   investigate: (id: string) =>
     req<{ sources: Source[] }>(`/api/channels/${id}/sources/investigate`, { method: "POST" }),
+
+  settings: (id: string) => req<{ settings: ChannelSettings }>(`/api/channels/${id}/settings`),
+  updateSettings: (id: string, body: Partial<ChannelSettings>) =>
+    req<{ settings: ChannelSettings }>(`/api/channels/${id}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  styleGuide: (id: string) => req<{ styleGuide: string }>(`/api/channels/${id}/styleguide`),
+  saveStyleGuide: (id: string, styleGuide: string) =>
+    req<{ styleGuide: string }>(`/api/channels/${id}/styleguide`, {
+      method: "PUT",
+      body: JSON.stringify({ styleGuide }),
+    }),
+  regenerateStyleGuide: (id: string) =>
+    req<{ styleGuide: string }>(`/api/channels/${id}/styleguide/regenerate`, { method: "POST" }),
 
   slots: (id: string) => req<{ slots: SlotConfig[] }>(`/api/channels/${id}/slots`),
   updateSlot: (sid: string, body: Partial<SlotConfig>) =>

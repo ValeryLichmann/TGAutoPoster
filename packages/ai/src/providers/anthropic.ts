@@ -1,44 +1,64 @@
-import type { TextProvider, TextRequest } from "../types.js";
+import Anthropic from "@anthropic-ai/sdk";
+import type { TextProvider, TextRequest, UsageHook } from "../types.js";
+
+export interface AnthropicOptions {
+  apiKey: string;
+  /** Strong model for digests/analysis/style guides. */
+  smartModel?: string;
+  /** Cheap+quick model for routine posts. */
+  fastModel?: string;
+  onUsage?: UsageHook;
+}
 
 /**
- * Minimal Anthropic Messages API client (fetch-based, no SDK dependency so the
- * package stays light and transparent). Only instantiated when ANTHROPIC_API_KEY
- * is present; otherwise the factory falls back to the mock provider.
+ * Anthropic text provider via the official SDK, with model tiering (fast/smart)
+ * and prompt caching on the system block. No sampling params are sent — current
+ * Claude models reject non-default temperature/top_p.
  */
 export class AnthropicTextProvider implements TextProvider {
   readonly name = "anthropic";
-  private readonly apiKey: string;
-  private readonly model: string;
-  private readonly endpoint = "https://api.anthropic.com/v1/messages";
+  private readonly client: Anthropic;
+  private readonly smartModel: string;
+  private readonly fastModel: string;
+  private readonly onUsage?: UsageHook;
 
-  constructor(apiKey: string, model = "claude-sonnet-5") {
-    this.apiKey = apiKey;
-    this.model = model;
+  constructor(opts: AnthropicOptions) {
+    this.client = new Anthropic({ apiKey: opts.apiKey });
+    this.smartModel = opts.smartModel ?? "claude-sonnet-5";
+    this.fastModel = opts.fastModel ?? "claude-haiku-4-5";
+    this.onUsage = opts.onUsage;
   }
 
   async complete(req: TextRequest): Promise<string> {
-    const res = await fetch(this.endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: req.maxTokens ?? 1024,
-        temperature: req.temperature ?? 0.7,
-        system: req.system,
-        messages: [{ role: "user", content: req.prompt }],
-      }),
+    const tier = req.tier ?? "smart";
+    const model = tier === "fast" ? this.fastModel : this.smartModel;
+
+    const response = await this.client.messages.create({
+      model,
+      max_tokens: req.maxTokens ?? 1024,
+      system: [
+        {
+          type: "text" as const,
+          text: req.system,
+          ...(req.cacheSystem ? { cache_control: { type: "ephemeral" as const } } : {}),
+        },
+      ],
+      messages: [{ role: "user", content: req.prompt }],
     });
-    if (!res.ok) {
-      throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`);
-    }
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-    return (data.content ?? [])
-      .filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
+
+    this.onUsage?.({
+      provider: this.name,
+      model,
+      tier,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+      images: 0,
+    });
+
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
       .join("")
       .trim();
   }

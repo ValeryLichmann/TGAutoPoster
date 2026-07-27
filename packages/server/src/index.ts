@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { buildApi } from "./api.js";
 import { buildBot } from "./bot.js";
+import { startScheduler } from "./scheduler.js";
 import { createSeededStore } from "./store.js";
 
 async function main() {
@@ -8,8 +9,6 @@ async function main() {
 
   const app = await buildApi(store);
   await app.listen({ port: config.port, host: "0.0.0.0" });
-  app.log.warn(`API on :${config.port} (AI: ${config.ai.ANTHROPIC_API_KEY ? "live" : "mock"})`);
-  // eslint-disable-next-line no-console
   console.log(`▶ TGAutoPoster API listening on http://localhost:${config.port}`);
 
   const bot = buildBot(store);
@@ -18,6 +17,16 @@ async function main() {
   } else {
     console.log("ℹ TELEGRAM_BOT_TOKEN not set — bot disabled, API + Mini App still work.");
   }
+
+  const scheduler = startScheduler(store, bot);
+
+  const shutdown = () => {
+    scheduler.stop();
+    store.saveNow();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {

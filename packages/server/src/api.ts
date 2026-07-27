@@ -1,13 +1,13 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
-import type { AdminStats, PostDraft, Source } from "@tgap/shared";
-import { createAiClient, generatePostDraft, investigateSources } from "@tgap/ai";
+import type { AdminStats, AutopilotMode, PostDraft, Source } from "@tgap/shared";
+import { generateStyleGuide, investigateSources } from "@tgap/ai";
 import { config } from "./config.js";
 import { verifyInitData, type TgUser } from "./auth.js";
 import { checkAccess, recordUsage } from "./entitlement.js";
+import { generateForSlot, getAi } from "./generation.js";
 import type { Store } from "./store.js";
 
-const ai = createAiClient(config.ai);
 const policy = { trialDays: config.freeTrialDays, freeDailyLimit: config.freeTierDailyPosts };
 
 /** Pull the authenticated Telegram user off the request (set by preHandler). */
@@ -25,15 +25,8 @@ function findSource(store: Store, id: string): { channelId: string; source: Sour
   return null;
 }
 
-function findDraft(store: Store, id: string): { channelId: string; draft: PostDraft } | null {
-  for (const [channelId, list] of store.drafts) {
-    const draft = list.find((d) => d.id === id);
-    if (draft) return { channelId, draft };
-  }
-  return null;
-}
-
 export async function buildApi(store: Store): Promise<FastifyInstance> {
+  const ai = getAi(store);
   const app = Fastify({ logger: { level: config.nodeEnv === "production" ? "info" : "warn" } });
   await app.register(cors, { origin: true });
 
@@ -49,7 +42,9 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
   });
 
   const requireAdmin = (req: FastifyRequest, reply: FastifyReply): boolean => {
-    if (!config.adminUserIds.includes(currentUser(req).id)) {
+    const u = currentUser(req);
+    const record = store.users.get(u.id);
+    if (!record?.isAdmin && !config.adminUserIds.includes(u.id)) {
       reply.code(403).send({ error: "Admin only", code: "FORBIDDEN" });
       return false;
     }
@@ -82,6 +77,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
         posts: c.analysis.window.totalPosts,
         avgPerDay: c.analysis.avgPostsPerDay,
         slots: c.analysis.slots.length,
+        autopilot: c.settings.autopilot,
       })),
     };
   });
@@ -91,10 +87,21 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
     const body = req.body as { handle?: string };
     if (!body?.handle) return reply.code(400).send({ error: "handle required" });
     const channel = await store.connectChannel(body.handle, u.id);
-    // Enrich sources with AI investigation in the background (best-effort).
+    // Enrich in the background: AI-investigated sources + the style guide.
     void investigateSources(ai, channel.analysis)
       .then((found) => {
-        if (found.length) store.sources.set(channel.id, [...(store.sources.get(channel.id) ?? []), ...found]);
+        if (found.length) {
+          store.sources.set(channel.id, [...(store.sources.get(channel.id) ?? []), ...found]);
+          store.persist();
+        }
+      })
+      .catch(() => {});
+    void generateStyleGuide(ai, channel.analysis, channel.historySample)
+      .then((guide) => {
+        if (!channel.styleGuide) {
+          channel.styleGuide = guide;
+          store.persist();
+        }
       })
       .catch(() => {});
     return { channel: { id: channel.id, title: channel.title }, analysis: channel.analysis };
@@ -104,6 +111,47 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
     const channel = store.channels.get((req.params as { id: string }).id);
     if (!channel) return reply.code(404).send({ error: "channel not found" });
     return { analysis: channel.analysis };
+  });
+
+  // --- Channel settings (autopilot) ---
+  app.get("/api/channels/:id/settings", async (req, reply) => {
+    const channel = store.channels.get((req.params as { id: string }).id);
+    if (!channel) return reply.code(404).send({ error: "channel not found" });
+    return { settings: channel.settings };
+  });
+
+  app.patch("/api/channels/:id/settings", async (req, reply) => {
+    const channel = store.channels.get((req.params as { id: string }).id);
+    if (!channel) return reply.code(404).send({ error: "channel not found" });
+    const b = req.body as { autopilot?: AutopilotMode };
+    if (b.autopilot && ["manual", "semi", "auto"].includes(b.autopilot)) {
+      channel.settings.autopilot = b.autopilot;
+      store.persist();
+    }
+    return { settings: channel.settings };
+  });
+
+  // --- Style guide (transparent, editable) ---
+  app.get("/api/channels/:id/styleguide", async (req, reply) => {
+    const channel = store.channels.get((req.params as { id: string }).id);
+    if (!channel) return reply.code(404).send({ error: "channel not found" });
+    return { styleGuide: channel.styleGuide };
+  });
+
+  app.put("/api/channels/:id/styleguide", async (req, reply) => {
+    const channel = store.channels.get((req.params as { id: string }).id);
+    if (!channel) return reply.code(404).send({ error: "channel not found" });
+    channel.styleGuide = (req.body as { styleGuide?: string }).styleGuide ?? "";
+    store.persist();
+    return { styleGuide: channel.styleGuide };
+  });
+
+  app.post("/api/channels/:id/styleguide/regenerate", async (req, reply) => {
+    const channel = store.channels.get((req.params as { id: string }).id);
+    if (!channel) return reply.code(404).send({ error: "channel not found" });
+    channel.styleGuide = await generateStyleGuide(ai, channel.analysis, channel.historySample);
+    store.persist();
+    return { styleGuide: channel.styleGuide };
   });
 
   // --- Sources (transparent, reviewable) ---
@@ -131,6 +179,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
     const list = store.sources.get(id) ?? [];
     list.push(source);
     store.sources.set(id, list);
+    store.persist();
     return { source };
   });
 
@@ -143,7 +192,9 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
       prompt: b.prompt ?? hit.source.prompt,
       title: b.title ?? hit.source.title,
       url: b.url ?? hit.source.url,
+      kind: b.kind ?? hit.source.kind,
     });
+    store.persist();
     return { source: hit.source };
   });
 
@@ -155,6 +206,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
       hit.channelId,
       (store.sources.get(hit.channelId) ?? []).filter((s) => s.id !== id),
     );
+    store.persist();
     return { ok: true };
   });
 
@@ -164,6 +216,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
     const found = await investigateSources(ai, channel.analysis);
     const list = store.sources.get(channel.id) ?? [];
     store.sources.set(channel.id, [...list, ...found]);
+    store.persist();
     return { sources: found };
   });
 
@@ -179,13 +232,14 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
       const slot = list.find((s) => s.slotId === slotId);
       if (slot) {
         Object.assign(slot, req.body as object);
+        store.persist();
         return { slot };
       }
     }
     return reply.code(404).send({ error: "slot not found" });
   });
 
-  // --- Drafts + generation (entitlement-gated) ---
+  // --- Drafts + generation (entitlement-gated, grounded) ---
   app.get("/api/channels/:id/drafts", async (req) => {
     const id = (req.params as { id: string }).id;
     return { drafts: store.drafts.get(id) ?? [] };
@@ -206,33 +260,39 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
     const slot = slots.find((s) => s.slotId === body.slotId) ?? slots[0];
     if (!slot) return reply.code(400).send({ error: "no slot configured" });
 
-    const draft = await generatePostDraft(ai, {
-      channelId,
-      slot,
-      sources: store.sources.get(channelId) ?? [],
-      topic: body.topic ?? channel.analysis.typeMix[0]?.type ?? "today's top story",
-    });
-    (store.drafts.get(channelId) ?? store.drafts.set(channelId, []).get(channelId)!).push(draft);
+    const result = await generateForSlot(store, channel, slot, body.topic || undefined);
+    if (!result.ok) return reply.code(409).send({ error: result.reason, code: "NO_MATERIAL" });
     store.setEntitlement(recordUsage(ent));
-    return { draft };
+    return { draft: result.draft };
   });
 
   app.post("/api/drafts/:id/action", async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const hit = findDraft(store, id);
+    const hit = store.findDraft(id);
     if (!hit) return reply.code(404).send({ error: "draft not found" });
     const b = req.body as { action?: string; text?: string; scheduledFor?: string };
     const now = new Date().toISOString();
     switch (b.action) {
       case "approve":
         hit.draft.status = "approved";
+        if (!hit.draft.scheduledFor) hit.draft.scheduledFor = now; // publish next tick
         break;
       case "decline":
         hit.draft.status = "declined";
         break;
       case "edit":
-        hit.draft.text = b.text ?? hit.draft.text;
+        if (b.text && b.text !== hit.draft.text) {
+          store.recordEdit(hit.channelId, { before: hit.draft.text, after: b.text });
+          hit.draft.text = b.text;
+        }
         hit.draft.status = "edited";
+        break;
+      case "publish":
+        // publish now: mark approved (if pending) and due immediately
+        if (hit.draft.status === "pending" || hit.draft.status === "declined") {
+          hit.draft.status = "approved";
+        }
+        hit.draft.scheduledFor = now;
         break;
       case "reschedule":
         hit.draft.scheduledFor = b.scheduledFor ?? hit.draft.scheduledFor;
@@ -241,6 +301,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
         return reply.code(400).send({ error: "unknown action" });
     }
     hit.draft.updatedAt = now;
+    store.persist();
     return { draft: hit.draft };
   });
 
@@ -256,6 +317,7 @@ export async function buildApi(store: Store): Promise<FastifyInstance> {
       answered: false,
     };
     store.contact.push(msg);
+    store.persist();
     return { ok: true, message: msg };
   });
 
@@ -297,5 +359,6 @@ function computeAdminStats(store: Store): AdminStats {
     approvalRate: allDrafts.length ? Number((approved.length / allDrafts.length).toFixed(2)) : 0,
     planBreakdown,
     postsPublished7d: days,
+    usage: store.usage,
   };
 }

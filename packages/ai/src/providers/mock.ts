@@ -1,35 +1,66 @@
-import type { ImageProvider, ImageRequest, ImageResult, TextProvider, TextRequest } from "../types.js";
+import type {
+  ImageProvider,
+  ImageRequest,
+  ImageResult,
+  TextProvider,
+  TextRequest,
+  UsageHook,
+} from "../types.js";
 
 /**
  * Deterministic mock providers so the entire product runs end-to-end with no API
  * keys (AI_MODE=mock, or "auto" with no keys set). The text mock branches on a
  * `[[TASK:...]]` marker the prompt builders embed, and returns realistic,
- * schema-shaped output for each task.
+ * schema-shaped output for each task — including grounded generation, which
+ * echoes the fetched source items so the pipeline is visibly exercised.
  */
 export class MockTextProvider implements TextProvider {
   readonly name = "mock";
+  constructor(private readonly onUsage?: UsageHook) {}
 
   async complete(req: TextRequest): Promise<string> {
     const task = /\[\[TASK:([a-z_]+)\]\]/.exec(req.prompt)?.[1] ?? "generic";
+    let out: string;
     switch (task) {
       case "generate_post":
-        return this.mockPost(req.prompt);
+        out = this.mockPost(req.prompt);
+        break;
       case "investigate_sources":
-        return this.mockSources(req.prompt);
+        out = this.mockSources(req.prompt);
+        break;
+      case "style_guide":
+        out = this.mockStyleGuide(req.prompt);
+        break;
       case "confirm_schedule":
-        return "Here's the schedule I detected. Reply ✅ to confirm, or tell me what to change.";
+        out = "Here's the schedule I detected. Reply ✅ to confirm, or tell me what to change.";
+        break;
       default:
-        return "(mock) " + req.prompt.slice(0, 80);
+        out = "(mock) " + req.prompt.slice(0, 80);
     }
+    this.onUsage?.({
+      provider: this.name,
+      model: "mock",
+      tier: req.tier ?? "smart",
+      inputTokens: Math.ceil((req.system.length + req.prompt.length) / 4),
+      outputTokens: Math.ceil(out.length / 4),
+      cacheReadTokens: 0,
+      images: 0,
+    });
+    return out;
   }
 
   private mockPost(prompt: string): string {
-    const topic = /TOPIC:\s*(.+)/.exec(prompt)?.[1]?.trim() ?? "today's top story";
+    // Grounded mode: echo the first fetched item so grounding is visible.
+    const item = /### ITEM: (.+)/.exec(prompt)?.[1]?.trim();
+    const link = /LINK: (\S+)/.exec(prompt)?.[1];
+    const topic = item ?? /TOPIC:\s*(.+)/.exec(prompt)?.[1]?.trim() ?? "today's top story";
     return [
       `📰 ${topic}`,
       "",
-      "A concise, on-brand take generated in mock mode — this is where the AI would",
-      "summarise the source, add context, and match your channel's voice.",
+      item
+        ? "A concise, on-brand rewrite of the source above — in live mode the AI restates only facts from the fetched material, in your channel's voice."
+        : "A concise, on-brand take generated in mock mode — no fresh source material was provided for this draft.",
+      ...(link ? ["", `🔗 ${link}`] : []),
       "",
       "#news #update",
     ].join("\n");
@@ -46,10 +77,34 @@ export class MockTextProvider implements TextProvider {
     }));
     return JSON.stringify({ sources: list }, null, 2);
   }
+
+  private mockStyleGuide(prompt: string): string {
+    const title = /Channel:\s*(.+)/.exec(prompt)?.[1]?.trim() ?? "this channel";
+    return [
+      `# Style guide — ${title}`,
+      "",
+      "## Voice",
+      "- Direct, newsy, confident. No filler, no throat-clearing.",
+      "- Sentences are short. One idea per line.",
+      "",
+      "## Structure",
+      "- Lead with the headline fact, then 1–2 lines of context.",
+      "- End with the source link on its own line.",
+      "",
+      "## Formatting",
+      "- 1 emoji at the start of the post, none mid-sentence.",
+      "- 1–3 hashtags at the end, lowercase.",
+      "",
+      "## Never",
+      "- Never invent facts not present in the source material.",
+      "- Never use clickbait phrasing (\"you won't believe…\").",
+    ].join("\n");
+  }
 }
 
 export class MockImageProvider implements ImageProvider {
   readonly name = "mock";
+  constructor(private readonly onUsage?: UsageHook) {}
 
   async generate(req: ImageRequest): Promise<ImageResult> {
     // A tiny deterministic SVG placeholder encoded as a data URL.
@@ -61,6 +116,15 @@ export class MockImageProvider implements ImageProvider {
 <text x="50%" y="50%" fill="#fff" font-family="sans-serif" font-size="20"
 text-anchor="middle">${label}</text></svg>`;
     const url = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+    this.onUsage?.({
+      provider: this.name,
+      model: "mock",
+      tier: "image",
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      images: 1,
+    });
     return { url, provider: this.name };
   }
 }

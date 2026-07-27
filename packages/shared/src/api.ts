@@ -3,6 +3,7 @@ import { ChannelAnalysis } from "./analysis.js";
 import { Source, SourceInput } from "./sources.js";
 import { PostDraft, SlotConfig } from "./posts.js";
 import { AccessDecision, Entitlement } from "./billing.js";
+import { AiUsageTotals } from "./settings.js";
 
 /** GET /api/channels/:id/analysis */
 export const AnalysisResponse = z.object({ analysis: ChannelAnalysis });
@@ -42,6 +43,7 @@ export const AdminStats = z.object({
   approvalRate: z.number(),
   planBreakdown: z.record(z.string(), z.number().int()),
   postsPublished7d: z.array(z.object({ date: z.string(), count: z.number().int() })),
+  usage: AiUsageTotals,
 });
 export type AdminStats = z.infer<typeof AdminStats>;
 

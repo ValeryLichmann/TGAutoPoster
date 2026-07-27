@@ -12,11 +12,12 @@ build/
 .env.*
 !.env.example
 
-# db
+# db & persisted state
 *.sqlite
 *.sqlite-journal
 *.db
 packages/server/prisma/dev.db*
+packages/server/data/
 
 # logs
 *.log

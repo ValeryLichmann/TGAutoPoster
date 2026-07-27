@@ -1,5 +1,7 @@
-import type { ChannelAnalysis, ScheduleSlot, Source } from "@tgap/shared";
-import type { TextRequest } from "./types.js";
+import type { ChannelAnalysis, PostType, ScheduleSlot, Source } from "@tgap/shared";
+import type { EditPair } from "./style.js";
+import { formatCorrections } from "./style.js";
+import type { ModelTier, TextRequest } from "./types.js";
 
 /**
  * Prompt builders. Everything the AI is told is assembled here so it can be
@@ -8,7 +10,13 @@ import type { TextRequest } from "./types.js";
  * the mock provider and useful for logging/tracing.
  */
 
-/** A sensible default, editable style prompt derived from the analysis. */
+/** Cheap model for routine short posts; smart model for long-form. */
+export function tierForPostType(t: PostType): ModelTier {
+  return t === "digest" || t === "analysis" || t === "announcement" ? "smart" : "fast";
+}
+
+/** A sensible default, editable style prompt derived from the analysis — used
+ * until the full AI style guide has been generated. */
 export function defaultStylePrompt(analysis: ChannelAnalysis, slot: ScheduleSlot): string {
   const s = analysis.styleProfile;
   return [
@@ -20,26 +28,79 @@ export function defaultStylePrompt(analysis: ChannelAnalysis, slot: ScheduleSlot
   ].join(" ");
 }
 
-export function buildPostGenerationPrompt(opts: {
-  stylePrompt: string;
+/** One fetched piece of source material feeding a grounded draft. */
+export interface GroundedItem {
+  title: string;
+  url: string;
+  excerpt: string;
+  sourceTitle: string;
+  /** The admin's custom prompt attached to this source, if any. */
+  sourcePrompt?: string;
+}
+
+export interface PostGenerationOptions {
+  /** The channel's style guide (AI-generated or admin-edited) or the slot's style prompt. */
+  styleGuide: string;
+  /** The channel's own posts of this type, best first. */
+  examples?: string[];
+  /** Recent admin edits to learn from. */
+  corrections?: EditPair[];
   sources: Source[];
   topic: string;
-  sourceContent?: string;
-}): TextRequest {
+  postType: PostType;
+  /** Fresh fetched source material. When present the draft is grounded: only
+   * facts from these items may be used. */
+  items?: GroundedItem[];
+}
+
+export function buildPostGenerationPrompt(opts: PostGenerationOptions): TextRequest {
+  // System = stable per-channel content (style guide + examples + corrections)
+  // so Anthropic prompt caching makes repeat generations cheap.
+  const exampleBlock = opts.examples?.length
+    ? `\n\n## Examples of this channel's real ${opts.postType} posts — imitate them\n` +
+      opts.examples.map((e, i) => `--- example ${i + 1} ---\n${e}`).join("\n")
+    : "";
+  const system =
+    `${opts.styleGuide}${exampleBlock}${formatCorrections(opts.corrections ?? [])}\n\n` +
+    `## Hard rules\n` +
+    `- Output only the post text, ready to publish. No preamble, no commentary.\n` +
+    `- Never invent facts. If source material is provided, use only facts from it and include its link.\n` +
+    `- Match the language of the example posts.`;
+
+  const itemBlocks = (opts.items ?? [])
+    .map((it) =>
+      [
+        `### ITEM: ${it.title}`,
+        `LINK: ${it.url}`,
+        `FROM: ${it.sourceTitle}${it.sourcePrompt ? ` — admin note: ${it.sourcePrompt}` : ""}`,
+        it.excerpt,
+      ].join("\n"),
+    )
+    .join("\n\n");
+
   const sourceLines = opts.sources
     .map((s) => `- ${s.title} (${s.url})${s.prompt ? ` — admin note: ${s.prompt}` : ""}`)
     .join("\n");
+
   const prompt = [
     `[[TASK:generate_post]]`,
     `TOPIC: ${opts.topic}`,
+    `POST TYPE: ${opts.postType}`,
     ``,
-    `Approved sources:`,
-    sourceLines || "(none configured)",
-    opts.sourceContent ? `\nSource material:\n${opts.sourceContent}` : "",
+    opts.items?.length
+      ? `Fresh source material (base the post ONLY on this):\n\n${itemBlocks}`
+      : `Approved sources for context:\n${sourceLines || "(none configured)"}`,
     ``,
-    `Write one ready-to-publish post. Output only the post text (with emoji/hashtags as appropriate).`,
+    `Write one ready-to-publish ${opts.postType} post.`,
   ].join("\n");
-  return { system: opts.stylePrompt, prompt, maxTokens: 700, temperature: 0.7 };
+
+  return {
+    system,
+    prompt,
+    maxTokens: 700,
+    tier: tierForPostType(opts.postType),
+    cacheSystem: true,
+  };
 }
 
 export function buildImagePrompt(opts: { postText: string; imageStylePrompt: string }): string {
@@ -62,8 +123,9 @@ export function buildSourceInvestigationPrompt(opts: {
     `The channel frequently cites these domains:`,
     domainLines || "(none)",
     ``,
-    `For each, decide whether it's a genuine primary content source. Also propose up to 3`,
-    `additional high-quality sources (RSS/website/Telegram) that fit this channel's topic.`,
+    `For each, decide whether it's a genuine primary content source and find its RSS feed URL if one`,
+    `exists. Also propose up to 3 additional high-quality sources (RSS/website/Telegram) that fit`,
+    `this channel's topic. Prefer RSS URLs — they can be fetched automatically.`,
     `Return strict JSON: {"sources":[{"title","url","kind","rationale","confidence"}]}.`,
   ].join("\n");
   return {
@@ -71,7 +133,7 @@ export function buildSourceInvestigationPrompt(opts: {
       "You are a research assistant that identifies and verifies content sources. Respond with valid JSON only.",
     prompt,
     maxTokens: 1200,
-    temperature: 0.3,
+    tier: "smart",
   };
 }
 
@@ -85,5 +147,6 @@ export function buildScheduleConfirmationPrompt(analysis: ChannelAnalysis): Text
       `Slots: ${analysis.slots.map((s) => s.label).join("; ")}`,
     ].join("\n"),
     maxTokens: 400,
+    tier: "fast",
   };
 }

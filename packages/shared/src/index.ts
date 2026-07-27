@@ -9,4 +9,5 @@ export * from "./analysis.js";
 export * from "./sources.js";
 export * from "./posts.js";
 export * from "./billing.js";
+export * from "./settings.js";
 export * from "./api.js";

@@ -1,34 +1,21 @@
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import type { PostDraft } from "@tgap/shared";
-import { createAiClient, generatePostDraft } from "@tgap/ai";
+import type { AutopilotMode } from "@tgap/shared";
 import { config } from "./config.js";
 import { checkAccess, recordUsage } from "./entitlement.js";
+import { generateForSlot } from "./generation.js";
 import type { Store } from "./store.js";
+import { draftKeyboard, renderDraft } from "./botui.js";
 
-const ai = createAiClient(config.ai);
 const policy = { trialDays: config.freeTrialDays, freeDailyLimit: config.freeTierDailyPosts };
 
 /** Users mid-way through an inline "edit" (awaiting their replacement text). */
 const pendingEdit = new Map<string, string>(); // telegramUserId -> draftId
 
-function draftKeyboard(draft: PostDraft): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("✅ Confirm", `d:approve:${draft.id}`)
-    .text("✏️ Edit", `d:edit:${draft.id}`)
-    .row()
-    .text("🔄 Regenerate", `d:regenerate:${draft.id}`)
-    .text("❌ Decline", `d:decline:${draft.id}`);
-}
-
-function renderDraft(draft: PostDraft): string {
-  const img = draft.imageUrl ? "\n\n🖼 (image attached)" : "";
-  return `*Draft — ${draft.postType}*\n\n${draft.text}${img}`;
-}
-
 /**
  * Build the grammY bot: /start opens the Mini App, /connect analyses a channel,
- * /generate produces a draft the admin confirms/edits/declines inline. Returns
- * null (no-op) when TELEGRAM_BOT_TOKEN is unset so the server still boots.
+ * /generate produces a grounded draft the admin confirms/edits/declines inline,
+ * /autopilot switches the channel's autonomy mode. Returns null (no-op) when
+ * TELEGRAM_BOT_TOKEN is unset so the server still boots.
  */
 export function buildBot(store: Store): Bot | null {
   if (!config.botToken) return null;
@@ -41,7 +28,8 @@ export function buildBot(store: Store): Bot | null {
       .text("🔗 Connect a channel", "connect");
     await ctx.reply(
       "Welcome to *TGAutoPoster* — I analyse your channel, learn its schedule & style, " +
-        "and draft posts for you to confirm.\n\nOpen the app or connect a channel to begin.",
+        "and draft posts for you to confirm — or publish them for you on autopilot.\n\n" +
+        "Commands: /connect /generate /autopilot",
       { parse_mode: "Markdown", reply_markup: kb },
     );
   });
@@ -71,31 +59,68 @@ export function buildBot(store: Store): Bot | null {
 
     const slot = (store.slots.get(channel.id) ?? [])[0];
     if (!slot) return ctx.reply("No posting slots detected for this channel yet.");
-    await ctx.reply("✍️ Generating a draft…");
-    const draft = await generatePostDraft(ai, {
-      channelId: channel.id,
-      slot,
-      sources: store.sources.get(channel.id) ?? [],
-      topic: ctx.match?.trim() || "today's top story",
-    });
-    (store.drafts.get(channel.id) ?? store.drafts.set(channel.id, []).get(channel.id)!).push(draft);
+    await ctx.reply("✍️ Fetching sources & writing a draft…");
+    const result = await generateForSlot(store, channel, slot, ctx.match?.trim() || undefined);
+    if (!result.ok) return ctx.reply(`⏸ ${result.reason}`);
     store.setEntitlement(recordUsage(ent));
-    await ctx.reply(renderDraft(draft), { parse_mode: "Markdown", reply_markup: draftKeyboard(draft) });
+    await ctx.reply(renderDraft(result.draft), {
+      parse_mode: "Markdown",
+      reply_markup: draftKeyboard(result.draft),
+    });
+  });
+
+  bot.command("autopilot", async (ctx) => {
+    const userId = String(ctx.from?.id ?? "");
+    const channel = store.channelsOf(userId)[0];
+    if (!channel) return ctx.reply("Connect a channel first: /connect @yourchannel");
+    const kb = new InlineKeyboard()
+      .text(mark(channel.settings.autopilot, "manual") + " Manual", `ap:manual:${channel.id}`)
+      .row()
+      .text(mark(channel.settings.autopilot, "semi") + " Semi (grace window)", `ap:semi:${channel.id}`)
+      .row()
+      .text(mark(channel.settings.autopilot, "auto") + " Full auto", `ap:auto:${channel.id}`);
+    await ctx.reply(
+      `*Autopilot for ${channel.title}*\n\n` +
+        `• *Manual* — every draft waits for your ✅\n` +
+        `• *Semi* — drafts auto-publish after ${config.semiPublishDelayMin} min unless you decline\n` +
+        `• *Full auto* — drafts publish immediately at slot times`,
+      { parse_mode: "Markdown", reply_markup: kb },
+    );
+  });
+
+  bot.callbackQuery(/^ap:(manual|semi|auto):(.+)$/, async (ctx) => {
+    const [, mode, channelId] = ctx.match!;
+    const channel = store.channels.get(channelId!);
+    if (!channel) return ctx.answerCallbackQuery({ text: "Channel not found" });
+    channel.settings.autopilot = mode as AutopilotMode;
+    store.persist();
+    await ctx.answerCallbackQuery({ text: `Autopilot: ${mode}` });
+    await ctx.editMessageText(`✅ Autopilot for *${channel.title}* set to *${mode}*.`, {
+      parse_mode: "Markdown",
+    });
   });
 
   // Draft inline actions: d:<action>:<draftId>
   bot.callbackQuery(/^d:(approve|decline|edit|regenerate):(.+)$/, async (ctx) => {
     const [, action, draftId] = ctx.match!;
-    const found = findDraft(store, draftId!);
+    const found = store.findDraft(draftId!);
     if (!found) return ctx.answerCallbackQuery({ text: "Draft not found" });
     const { channelId, draft } = found;
 
     if (action === "approve") {
       draft.status = "approved";
+      // Publish on the scheduler's next tick.
+      if (!draft.scheduledFor) draft.scheduledFor = new Date().toISOString();
+      draft.updatedAt = new Date().toISOString();
+      store.persist();
       await ctx.answerCallbackQuery({ text: "Approved ✅" });
-      await ctx.editMessageText(`✅ *Approved & queued*\n\n${draft.text}`, { parse_mode: "Markdown" });
+      await ctx.editMessageText(`✅ *Approved — publishing shortly*\n\n${draft.text}`, {
+        parse_mode: "Markdown",
+      });
     } else if (action === "decline") {
       draft.status = "declined";
+      draft.updatedAt = new Date().toISOString();
+      store.persist();
       await ctx.answerCallbackQuery({ text: "Declined" });
       await ctx.editMessageText("❌ Draft declined.");
     } else if (action === "edit") {
@@ -104,16 +129,19 @@ export function buildBot(store: Store): Bot | null {
       await ctx.reply("Send me the edited text and I'll replace this draft.");
     } else if (action === "regenerate") {
       await ctx.answerCallbackQuery({ text: "Regenerating…" });
-      const slot = (store.slots.get(channelId) ?? [])[0];
-      if (slot) {
-        const fresh = await generatePostDraft(ai, {
-          channelId,
-          slot,
-          sources: store.sources.get(channelId) ?? [],
-          topic: "today's top story",
-        });
-        store.drafts.get(channelId)!.push(fresh);
-        await ctx.reply(renderDraft(fresh), { parse_mode: "Markdown", reply_markup: draftKeyboard(fresh) });
+      const channel = store.channels.get(channelId);
+      const slot = (store.slots.get(channelId) ?? []).find((s) => s.slotId === draft.slotId)
+        ?? (store.slots.get(channelId) ?? [])[0];
+      if (channel && slot) {
+        const result = await generateForSlot(store, channel, slot);
+        if (result.ok) {
+          await ctx.reply(renderDraft(result.draft), {
+            parse_mode: "Markdown",
+            reply_markup: draftKeyboard(result.draft),
+          });
+        } else {
+          await ctx.reply(`⏸ ${result.reason}`);
+        }
       }
     }
   });
@@ -127,40 +155,43 @@ export function buildBot(store: Store): Bot | null {
     );
   });
 
-  // Capture edited text when a user is mid-edit.
+  // Capture edited text when a user is mid-edit; the edit pair feeds the style
+  // engine so future drafts match the owner's corrections.
   bot.on("message:text", async (ctx) => {
     const userId = String(ctx.from.id);
     const draftId = pendingEdit.get(userId);
     if (!draftId) return;
     pendingEdit.delete(userId);
-    const found = findDraft(store, draftId);
+    const found = store.findDraft(draftId);
     if (!found) return;
+    store.recordEdit(found.channelId, { before: found.draft.text, after: ctx.message.text });
     found.draft.text = ctx.message.text;
     found.draft.status = "edited";
     found.draft.updatedAt = new Date().toISOString();
-    await ctx.reply(`Updated ✏️`, { reply_markup: draftKeyboard(found.draft) });
+    store.persist();
+    await ctx.reply(`Updated ✏️ — I'll learn from this edit.`, { reply_markup: draftKeyboard(found.draft) });
   });
 
   return bot;
 }
 
+function mark(current: AutopilotMode, mode: AutopilotMode): string {
+  return current === mode ? "●" : "○";
+}
+
 async function handleConnect(ctx: Context, store: Store, handle: string) {
   const userId = String(ctx.from?.id ?? "");
   await ctx.reply(`🔎 Analysing ${handle} — reading up to a year of history…`);
-  const channel = await store.connectChannel(handle, userId);
-  const a = channel.analysis;
-  await ctx.reply(
-    `*${a.channelTitle}* analysed ✅\n\n${a.narrative}\n\n` +
-      `I set up ${a.slots.length} posting slot(s). Use /generate to see a draft, ` +
-      `or open the app to review sources, schedule and prompts.`,
-    { parse_mode: "Markdown", reply_markup: new InlineKeyboard().webApp("Open app", config.miniappUrl) },
-  );
-}
-
-function findDraft(store: Store, id: string): { channelId: string; draft: PostDraft } | null {
-  for (const [channelId, list] of store.drafts) {
-    const draft = list.find((d) => d.id === id);
-    if (draft) return { channelId, draft };
+  try {
+    const channel = await store.connectChannel(handle, userId);
+    const a = channel.analysis;
+    await ctx.reply(
+      `*${a.channelTitle}* analysed ✅\n\n${a.narrative}\n\n` +
+        `I set up ${a.slots.length} posting slot(s). Use /generate for a draft, /autopilot to set ` +
+        `autonomy, or open the app to review sources, schedule and prompts.`,
+      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().webApp("Open app", config.miniappUrl) },
+    );
+  } catch (err) {
+    await ctx.reply(`❌ Could not analyse ${handle}: ${(err as Error).message}`);
   }
-  return null;
 }

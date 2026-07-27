@@ -37,8 +37,9 @@ export function Studio({ channelId, me, toast, onQuota, refreshMe }: Props) {
       haptic("success");
       toast("Draft ready");
     } catch (e) {
-      if ((e as { status?: number }).status === 402) onQuota();
-      else toast((e as Error).message);
+      const status = (e as { status?: number }).status;
+      if (status === 402) onQuota();
+      else toast((e as Error).message); // incl. "no fresh source material" (409)
     } finally { setBusy(false); }
   };
 
@@ -77,13 +78,19 @@ export function Studio({ channelId, me, toast, onQuota, refreshMe }: Props) {
 function DraftCard({ d, onAction }: { d: PostDraft; onAction: (d: PostDraft, a: string, t?: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(d.text);
-  const done = d.status === "approved" || d.status === "declined";
+  const done = d.status === "declined" || d.status === "published";
+  const approved = d.status === "approved" || d.status === "edited";
 
   return (
     <div className="card" style={done ? { opacity: 0.7 } : undefined}>
       <div className="row" style={{ marginBottom: 8 }}>
         <span className="chip ai">{d.postType}</span>
         <StatusChip status={d.status} />
+        {approved && d.scheduledFor && (
+          <span className="muted" style={{ fontSize: 11 }}>
+            publishes {new Date(d.scheduledFor) <= new Date() ? "shortly" : `at ${d.scheduledFor.slice(11, 16)} UTC`}
+          </span>
+        )}
       </div>
       {d.imageUrl && <img className="draft-img" src={d.imageUrl} alt="" />}
       {editing ? (
@@ -104,6 +111,12 @@ function DraftCard({ d, onAction }: { d: PostDraft; onAction: (d: PostDraft, a: 
               <button className="btn ok" onClick={() => { onAction(d, "edit", text); setEditing(false); }}>Save</button>
               <button className="btn ghost" onClick={() => { setText(d.text); setEditing(false); }}>Cancel</button>
             </>
+          ) : approved ? (
+            <>
+              <button className="btn ok" onClick={() => onAction(d, "publish")}>🚀 Publish now</button>
+              <button className="btn" onClick={() => setEditing(true)}>✏️ Edit</button>
+              <button className="btn danger" onClick={() => onAction(d, "decline")}>❌ Cancel</button>
+            </>
           ) : (
             <>
               <button className="btn ok" onClick={() => onAction(d, "approve")}>✅ Confirm</button>
@@ -118,6 +131,13 @@ function DraftCard({ d, onAction }: { d: PostDraft; onAction: (d: PostDraft, a: 
 }
 
 function StatusChip({ status }: { status: string }) {
-  const map: Record<string, string> = { approved: "var(--ok)", edited: "var(--accent)", declined: "var(--danger)", pending: "var(--warn)" };
+  const map: Record<string, string> = {
+    approved: "var(--ok)",
+    edited: "var(--accent)",
+    published: "var(--ok)",
+    declined: "var(--danger)",
+    failed: "var(--danger)",
+    pending: "var(--warn)",
+  };
   return <span className="chip"><span className="dot" style={{ color: map[status] ?? "var(--tg-hint)" }} />{status}</span>;
 }

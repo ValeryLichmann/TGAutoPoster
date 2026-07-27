@@ -1,31 +1,39 @@
 # Architecture
 
 TGAutoPoster is a pnpm/TypeScript monorepo. The design goal is a **clean core**
-(deterministic, testable analysis + entitlement) with **swappable edges**
-(Telegram ingestion, AI providers, persistence) so the product runs with zero
-external dependencies in development and hardens into production by filling in
-`.env` and adopting Prisma.
+(deterministic, testable analysis + entitlement + scheduling) with **swappable
+edges** (Telegram ingestion, AI providers, persistence) so the product runs with
+zero external dependencies in development and goes live by filling in `.env`.
 
-## Data flow
+## Data flow — the full autopilot loop
 
 ```
-Telegram channel
-      │  MTProto (GramJS, read-only user session)  ── ingest/mtproto.ts
-      ▼                                               (dev: ingest/synthetic.ts)
-MessageRecord[]  ──►  @tgap/analysis  ──►  ChannelAnalysis
-                       (pure, tested)        │  slots · eras · gaps · typeMix · style · topDomains
-                                             ▼
-                    @tgap/ai ── investigateSources() ──►  Source[]  (AI-verified, admin-reviewed)
-                             ── generatePostDraft()   ──►  PostDraft (text + image + transparent prompt)
-                                             │
-      ┌──────────────────────────────────────┴───────────────────────────┐
-      ▼                                                                    ▼
-  grammY bot  (confirm/edit/decline inline)                    React Mini App  (analytics, sources,
-      │  entitlement-gated                                       schedule, studio, admin, support)
-      ▼                                                                    ▲
-  @tgap/server  Fastify API  ◄───────────────────────────── x-init-data (verified) ┘
-      │
-  Store (in-memory)  ⇄  prisma/schema.prisma  (production)
+Telegram channel ── MTProto (GramJS user session; dev: synthetic) ──► MessageRecord[]
+                                                                          │
+                          ┌───────────────────────────────────────────────┤
+                          ▼                                               ▼
+                 @tgap/analysis (pure, tested)                 history sample (few-shot pool)
+                 slots · eras · gaps · typeMix · style                    │
+                          │                                               │
+        AI style guide (once, editable) ◄─────────────────────────────────┘
+                          │
+   Sources: AI-guessed → AI-investigated → admin-reviewed (+prompt per source)
+                          │
+   ┌──── scheduler tick (cadence.ts: daily/weekly/monthly slots, UTC) ────┐
+   │  content pipeline: fetch RSS/articles → dedup(seen) → fresh items    │
+   │  generation.ts: style guide + channel's own posts + owner edit       │
+   │    corrections + grounded items → draft (fast/smart model tier,      │
+   │    cached style prefix) — news with no material is REFUSED           │
+   │  autopilot: manual → buttons | semi → grace window | auto → publish  │
+   │  publisher: sendMessage/sendPhoto to the channel (bot = admin)       │
+   └──────────────────────────────────────────────────────────────────────┘
+                          │
+        grammY bot (confirm/edit/decline; edits feed style back)
+        React Mini App (analytics · sources · schedule+autopilot ·
+                        style guide editor · studio · admin+costs)
+                          │
+        Store — JSON-file persisted (data/store.json); Prisma schema
+        remains the path to Postgres at scale
 ```
 
 ## Packages
@@ -52,30 +60,54 @@ Pure functions, no I/O, no AI. `analyzeChannel(messages, opts)` produces a
 
 Fully unit-tested against a synthetic year with a known schedule.
 
-### `@tgap/ai` — vendor-agnostic AI
-`TextProvider` / `ImageProvider` interfaces with three implementations:
-Anthropic (Messages API, fetch-based), OpenAI images, and deterministic **mocks**.
-`createAiClient(env)` picks providers from `AI_MODE` + which keys exist, so the
-app always runs. `prompts.ts` assembles **every** instruction the model gets, so
-it can be shown verbatim to admins (transparency requirement). `generate.ts`
-stores the exact prompt on each draft; `investigate.ts` turns cited domains into
-verified sources.
+### `@tgap/ai` — the writing brain, cost-shaped
+`TextProvider` / `ImageProvider` interfaces with Anthropic (official SDK),
+OpenAI images, and deterministic **mocks** behind `createAiClient(env, onUsage)`.
+- **Model tiers** — every `TextRequest` carries `tier`; routine post types map
+  to the fast model (Haiku 4.5 default), long-form and one-time work to the
+  smart model (Sonnet 5 default). No sampling params are sent (current models
+  reject them).
+- **Prompt caching** — the per-channel system prefix (style guide + examples +
+  corrections) is marked `cache_control: ephemeral`; repeat generations read it
+  at ~10% price.
+- **Style engine (`style.ts`)** — `selectExamples` ranks the channel's own posts
+  by engagement per type for few-shot imitation; `generateStyleGuide` writes an
+  editable markdown guide from history; `formatCorrections` folds the owner's
+  past edits into the prompt so the model learns their preferences.
+- **Grounded prompts (`prompts.ts`)** — generation embeds fetched source items
+  with a hard "only facts from the material, include the link" rule. Everything
+  the model is told is assembled here and surfaced verbatim to admins.
+- **Usage hook** — every call reports tokens/images for spend tracking.
 
-### `@tgap/server` — API + bot + rules
-- **`api.ts`** — Fastify routes: `/api/me`, channel connect/analysis, source
-  CRUD + AI investigate, slot config, draft generate + actions, contact, admin
-  stats. A `preHandler` verifies Telegram Mini App `initData` (HMAC) on every
-  request.
-- **`bot.ts`** — grammY bot: `/start` (Mini App button), `/connect`, `/generate`,
-  and the **confirm/edit/decline/regenerate** inline callback flow. No-ops safely
-  when `TELEGRAM_BOT_TOKEN` is unset.
-- **`entitlement.ts`** — freemium: `createTrial` → `checkAccess` (trial unlimited,
-  free tier daily quota with midnight reset) → `grantPro`. Unit-tested.
-- **`ingest/`** — `HistoryIngester` interface; `SyntheticIngester` (dev) and the
-  documented **MTProto/GramJS** adapter for production (the Bot API cannot read
-  back through history — MTProto is required for “≥ 1 year”).
-- **`store.ts`** — in-memory repository seeded with a demo analysed channel.
-  `prisma/schema.prisma` is the production persistence model to migrate to.
+### `@tgap/server` — API + bot + autopilot
+- **`api.ts`** — Fastify routes: me/entitlement, channel connect + analysis,
+  settings (autopilot), style guide (get/put/regenerate), source CRUD + AI
+  investigate, slots, grounded generation, draft actions (incl. publish),
+  contact, admin stats + AI spend. `initData` HMAC verified on every request.
+- **`bot.ts`** — grammY bot: `/start`, `/connect`, `/generate`, `/autopilot`,
+  the confirm/edit/decline/regenerate inline flow; owner edits are recorded as
+  style feedback. No-ops safely without a token.
+- **`generation.ts`** — the single generation path (API/bot/scheduler): gather
+  grounded material → ensure style guide → few-shot + corrections → draft.
+  News/digest slots **refuse to generate** without fresh material in live mode.
+- **`content/`** — RSS/Atom parsing (fast-xml-parser), minimal article-text
+  extraction, and the dedup pipeline (`seen` links per channel, freshness
+  window, per-source caps).
+- **`cadence.ts` + `scheduler.ts`** — cadence strings (`daily@09:00,18:00`,
+  `weekly:1@12:00`, `monthly:1@10:00`, UTC) parsed and fired with persisted
+  occurrence keys (restart-safe, never double-posts); autopilot routing
+  (manual/semi/auto) and the **publisher** (sendPhoto/sendMessage to the real
+  channel; data-URL images are uploaded as files).
+- **`entitlement.ts`** — freemium: trial → free daily quota → Pro. Enforced in
+  the API, the bot *and* the scheduler. Unit-tested.
+- **`ingest/`** — `HistoryIngester`: **real GramJS MTProto adapter** (used when
+  `TELEGRAM_STRING_SESSION` is set; `tg:login` script mints it interactively)
+  with a synthetic fallback for keyless dev. MTProto is required because the
+  Bot API cannot page back through history.
+- **`store.ts`** — JSON-file-persisted state (debounced writes, loaded on
+  boot): channels + settings + style guides + history samples, sources, slots,
+  drafts, entitlements, seen links, edit pairs, fired occurrences, usage
+  totals. `prisma/schema.prisma` is the migration path to Postgres at scale.
 
 ### `@tgap/miniapp` — the Mini App
 React + Vite. `telegram.ts` boots the WebApp SDK, adopts Telegram **theme
@@ -98,19 +130,19 @@ Stars) appears on quota.
 - **Transparency by construction.** Prompts are built in one place and surfaced;
   sources carry `origin` + `rationale`; drafts carry their generation prompt.
 
-## Production hardening checklist
+## Remaining hardening (for scale/production)
 
-1. **Persistence** — replace `Store` with a Prisma repository (schema included);
-   set `DATABASE_URL` to Postgres.
-2. **MTProto** — add `telegram` (GramJS), generate a `StringSession`
-   (`pnpm --filter @tgap/server tg:login`), return `MtprotoIngester` from
-   `ingest/index.ts`.
-3. **Payments** — implement the Telegram Stars invoice + `successful_payment`
-   handler; call `grantPro` on success.
-4. **Publishing** — a scheduler that turns `approved` drafts into real channel
-   posts at their `scheduledFor` time (bot must be a channel admin).
-5. **AI cost/limits** — caching, retries, and per-plan model/size selection.
-6. **Secrets & auth** — real `SESSION_JWT_SECRET`, rotate tokens, never log
-   `initData`; keep `.session`/`.env` out of git (already in `.gitignore`).
-7. **Observability** — structured logs, error tracking, rate limiting on
+1. **Payments** — the Telegram Stars invoice + `successful_payment` handler;
+   entitlement logic (`grantPro`) is ready and waiting for it.
+2. **Postgres** — swap the JSON-file store for a Prisma repository (schema
+   included) once concurrent load or multi-instance deployment demands it.
+3. **Timezones** — cadences are UTC; per-channel timezone would improve UX.
+4. **Retries/backoff** — AI and fetch calls fail soft but don't retry;
+   add exponential backoff for live-mode robustness.
+5. **Secrets & auth** — real `SESSION_JWT_SECRET`; never log `initData`;
+   `.env`/`.session`/`data/` are gitignored already.
+6. **Observability** — structured logs, error tracking, rate limiting on
    `/api/*`.
+7. **Proxy environments** — Node's `fetch` ignores `HTTPS_PROXY`; if deploying
+   behind a corporate proxy, wire an undici proxy agent for the content
+   pipeline.

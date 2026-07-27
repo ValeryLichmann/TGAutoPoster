@@ -1,21 +1,30 @@
 import type { PostDraft, SlotConfig, Source } from "@tgap/shared";
 import type { AiClient } from "./types.js";
-import { buildImagePrompt, buildPostGenerationPrompt } from "./prompts.js";
+import type { EditPair } from "./style.js";
+import { buildImagePrompt, buildPostGenerationPrompt, type GroundedItem } from "./prompts.js";
 
 export interface GenerateDraftInput {
   channelId: string;
   slot: SlotConfig;
   sources: Source[];
   topic: string;
-  /** Optional fetched source material (RSS item, article excerpt). */
-  sourceContent?: string;
+  /** Channel style guide; falls back to the slot's style prompt. */
+  styleGuide?: string;
+  /** The channel's own posts of this type, for few-shot imitation. */
+  examples?: string[];
+  /** Recent admin edits to learn from. */
+  corrections?: EditPair[];
+  /** Fetched source material — when present the draft is grounded in it. */
+  items?: GroundedItem[];
   now?: Date;
 }
 
 /**
  * Generate a single post draft: writes the text with the (transparent, editable)
- * style prompt, then — if the slot wants an image — an accompanying picture. The
- * exact prompt used is stored on the draft so the admin can inspect it.
+ * style guide + the channel's own posts as examples, grounded in fetched source
+ * material when available, then — if the slot wants an image — an accompanying
+ * picture. The exact prompt used is stored on the draft so the admin can
+ * inspect it.
  */
 export async function generatePostDraft(
   ai: AiClient,
@@ -24,10 +33,13 @@ export async function generatePostDraft(
   const now = input.now ?? new Date();
   const approved = input.sources.filter((s) => s.approved);
   const req = buildPostGenerationPrompt({
-    stylePrompt: input.slot.stylePrompt,
+    styleGuide: input.styleGuide || input.slot.stylePrompt,
+    examples: input.examples,
+    corrections: input.corrections,
     sources: approved,
     topic: input.topic,
-    sourceContent: input.sourceContent,
+    postType: input.slot.postType,
+    items: input.items,
   });
 
   const text = await ai.text.complete(req);

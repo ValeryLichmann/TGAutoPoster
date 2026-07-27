@@ -1,10 +1,12 @@
 import type { MessageRecord } from "@tgap/shared";
+import { config } from "../config.js";
 import { syntheticHistory } from "./synthetic.js";
+import { MtprotoIngester } from "./mtproto.js";
 
 /**
- * Reading long channel history requires MTProto (the Bot API cannot page back
- * through history). Implementations abstract that away. See `mtproto.ts` for the
- * production GramJS adapter and `synthetic.ts` for the keyless demo path.
+ * Reading long channel history requires MTProto (the Bot API cannot read past
+ * history). Implementations abstract that away: the GramJS adapter when a user
+ * session is configured, a synthetic year of history otherwise (keyless demo).
  */
 export interface HistoryIngester {
   readonly name: string;
@@ -32,11 +34,14 @@ function hash(s: string): string {
   return String(h % 10_000_000_000);
 }
 
-/**
- * Pick an ingester from config. Currently returns the synthetic one; wire the
- * GramJS adapter (see mtproto.ts) once TELEGRAM_STRING_SESSION is provided.
- */
+/** MTProto when a user session is configured, synthetic otherwise. */
 export function createIngester(opts: { stringSession?: string }): HistoryIngester {
-  // if (opts.stringSession) return new MtprotoIngester(...);
+  if (opts.stringSession && config.apiId && config.apiHash) {
+    return new MtprotoIngester({
+      apiId: Number(config.apiId),
+      apiHash: config.apiHash,
+      stringSession: opts.stringSession,
+    });
+  }
   return new SyntheticIngester();
 }

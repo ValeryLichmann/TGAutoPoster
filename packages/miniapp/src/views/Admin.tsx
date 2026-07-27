@@ -28,6 +28,20 @@ export function Admin({ isAdmin }: { isAdmin: boolean }) {
         <Stat n={`${Math.round(stats.approvalRate * 100)}%`} l="approval rate" />
       </div>
 
+      <div className="section-title">AI spend (estimate)</div>
+      <div className="card">
+        <div className="stat-grid">
+          <Stat n={fmt(stats.usage.inputTokens)} l="input tokens" />
+          <Stat n={fmt(stats.usage.outputTokens)} l="output tokens" />
+          <Stat n={fmt(stats.usage.cacheReadTokens)} l="cached (cheap) tokens" />
+          <Stat n={`$${stats.usage.estCostUsd.toFixed(2)}`} l={`est. cost · ${stats.usage.images} images`} />
+        </div>
+        <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
+          Estimated from configured per-MTok prices. Routine posts use the fast model, long-form the
+          smart model; the per-channel style prefix is served from prompt cache at ~10% price.
+        </p>
+      </div>
+
       <div className="section-title">Plans</div>
       <div className="card">
         {Object.entries(stats.planBreakdown).map(([plan, n]) => (
@@ -56,4 +70,10 @@ export function Admin({ isAdmin }: { isAdmin: boolean }) {
 
 function Stat({ n, l }: { n: number | string; l: string }) {
   return <div className="stat"><div className="n">{n}</div><div className="l">{l}</div></div>;
+}
+
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
