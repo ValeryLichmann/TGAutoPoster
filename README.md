@@ -45,6 +45,16 @@ own.
 
 ## Quick start (no keys)
 
+**Easiest — one command starts/restarts everything** (kills old instances,
+installs deps on first run):
+
+```
+start.bat          # Windows: double-click it; opens two windows + your browser
+python start.py    # any OS: both services in one console, Ctrl+C stops both
+```
+
+Or manually:
+
 ```bash
 pnpm install
 pnpm dev:server        # API + scheduler on :8787 (mock AI, demo channel seeded)
