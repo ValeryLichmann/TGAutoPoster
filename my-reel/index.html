@@ -12,70 +12,97 @@
       #root { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
       .clip { position: absolute; inset: 0; }
 
-      :root { --blue: #1fa2ff; --blue-lite: #6fd0ff; --white: #ffffff; --muted: #93a6c4; --orange: #f5a623; }
-
-      /* SAFE ZONES (Instagram Reels): keep all TEXT within y ∈ [250, 1500].
-         Top ~250px and bottom ~420px are covered by IG UI (caption, buttons). */
+      :root { --blue: #1fa2ff; --blue-lite: #6fd0ff; --white: #ffffff; --muted: #93a6c4; --orange: #f5a623; --tg: #2aabee; }
 
       /* ---------- background ---------- */
-      #bg { background: radial-gradient(120% 90% at 50% 34%, #10203f 0%, #0a1224 42%, #05070f 100%); }
+      #bg { background: radial-gradient(120% 90% at 50% 34%, #10203f 0%, #0a1224 42%, #05070f 100%); overflow: hidden; }
+      #bgLogo { position: absolute; left: 50%; top: 300px; transform: translateX(-50%); width: 1500px; opacity: 0.05; }
+      #bgScan { position: absolute; inset: -50%; opacity: 0.05;
+        background: repeating-linear-gradient(0deg, rgba(31,162,255,0.5) 0 2px, transparent 2px 46px); }
       #glow { position: absolute; left: 50%; top: 46%; width: 1400px; height: 1400px; transform: translate(-50%, -50%);
-        border-radius: 50%; background: radial-gradient(circle, rgba(31,162,255,0.30) 0%, rgba(31,162,255,0.10) 30%, rgba(31,162,255,0) 62%); filter: blur(6px); }
+        border-radius: 50%; background: radial-gradient(circle, rgba(31,162,255,0.28) 0%, rgba(31,162,255,0.10) 30%, rgba(31,162,255,0) 62%); filter: blur(6px); }
       #grain { position: absolute; inset: 0; opacity: 0.06; background-image: radial-gradient(rgba(255,255,255,0.7) 1px, transparent 1px); background-size: 4px 4px; }
 
-      /* ---------- scene A : HOOK over real auto24 footage ---------- */
+      /* ---------- scene A : HOOK over auto24 footage ---------- */
       #hookStage { position: absolute; inset: 0; z-index: 3; overflow: hidden; }
       #s1video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
       #s1shade { position: absolute; inset: 0; background:
         linear-gradient(180deg, rgba(5,8,20,0.78) 0%, rgba(5,8,20,0.60) 40%, rgba(5,8,20,0.84) 100%); }
-      #hookBackglow { position: absolute; left: 50%; top: 720px; transform: translate(-50%, -50%);
-        width: 1080px; height: 720px; z-index: 1;
+      #hookBackglow { position: absolute; left: 50%; top: 720px; transform: translate(-50%, -50%); width: 1080px; height: 720px; z-index: 1;
         background: radial-gradient(52% 46% at 50% 50%, rgba(3,6,15,0.86) 0%, rgba(3,6,15,0.45) 55%, rgba(3,6,15,0) 78%); }
       #hookText { position: absolute; left: 60px; right: 60px; top: 560px; text-align: center; z-index: 2; }
-      .hook-l { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px;
-        text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
+      .hook-l { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px; text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
       .hook-row { display: flex; align-items: center; justify-content: center; gap: 26px; margin-top: 6px; }
-      .hook-row .rw { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px;
-        text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
-      .a24chip { background: #fff; border-radius: 20px; padding: 16px 30px; display: inline-flex; align-items: center;
-        box-shadow: 0 10px 34px rgba(0,0,0,0.45); }
+      .hook-row .rw { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px; text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
+      .a24chip { background: #fff; border-radius: 20px; padding: 16px 30px; display: inline-flex; align-items: center; box-shadow: 0 10px 34px rgba(0,0,0,0.45); }
       .a24chip img { height: 66px; display: block; }
-      .hook-sub { margin-top: 40px; font-size: 52px; font-weight: 800; color: var(--blue-lite);
-        text-shadow: 0 2px 24px rgba(0,0,0,0.7); }
+      .hook-sub { margin-top: 40px; font-size: 52px; font-weight: 800; color: var(--blue-lite); text-shadow: 0 2px 24px rgba(0,0,0,0.7); }
 
       /* ---------- scene B : phone demo ---------- */
       #phoneStage { position: absolute; inset: 0; z-index: 5; }
       #phone { position: absolute; left: 50%; top: 50%; width: 700px; height: 1244px;
         background: #05070f; border-radius: 68px; padding: 18px;
         box-shadow: 0 40px 120px rgba(0,0,0,0.6), 0 0 0 3px #223a5e, 0 0 90px rgba(31,162,255,0.35); }
-      #phone .screen { position: absolute; inset: 18px; border-radius: 52px; overflow: hidden; background: #000; }
-      #phone .screen video { width: 100%; height: 100%; object-fit: cover; display: block; }
-      #phone .notch { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); width: 172px; height: 34px;
-        background: #05070f; border-radius: 20px; z-index: 4; }
+      #phone .screen { position: absolute; inset: 18px; border-radius: 52px; overflow: hidden; background: #0a0f1e; }
+      #phone .screen video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+      #phone .notch { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); width: 172px; height: 34px; background: #05070f; border-radius: 20px; z-index: 9; }
       .rip { position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%;
-        border: 5px solid var(--blue); opacity: 0; z-index: 6; box-shadow: 0 0 34px rgba(31,162,255,0.85), inset 0 0 18px rgba(31,162,255,0.4); }
-      #rip1, #rip1b { left: 350px; top: 720px; }
-      #rip2, #rip2b { left: 350px; top: 892px; }
+        border: 5px solid var(--blue); opacity: 0; z-index: 8; box-shadow: 0 0 34px rgba(31,162,255,0.85), inset 0 0 18px rgba(31,162,255,0.4); }
+      #rip1, #rip1b { left: 350px; top: 700px; }
+      #rip2, #rip2b { left: 350px; top: 880px; }
+      #rip3, #rip3b { left: 350px; top: 210px; }
 
-      /* callouts — all in the TOP safe band (~250–470) */
-      .callout { position: absolute; left: 50%; z-index: 8; display: inline-flex; align-items: center; gap: 16px;
+      /* --- scan scene (inside screen) --- */
+      #scanScene { position: absolute; inset: 0; z-index: 5; background:
+        radial-gradient(120% 70% at 50% 30%, #10213f 0%, #0a0f1e 60%, #060913 100%); display: flex; flex-direction: column;
+        align-items: center; padding: 70px 40px 40px; }
+      .scan-top { display: flex; align-items: center; gap: 16px; color: var(--white); font-size: 40px; font-weight: 800; margin-bottom: 34px; }
+      .scan-top .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 22px var(--blue); }
+      .scan-card { position: relative; width: 560px; background: #0e1730; border: 1.5px solid #24365e; border-radius: 24px; overflow: hidden; padding: 22px; }
+      .scan-card .hdr { display: flex; justify-content: center; margin-bottom: 18px; }
+      .scan-card .hdr .chip { background: #fff; border-radius: 12px; padding: 8px 16px; display: inline-flex; }
+      .scan-card .hdr .chip img { height: 40px; display: block; }
+      .srow { height: 76px; border-radius: 14px; background: #17203c; margin-bottom: 16px; display: flex; align-items: center;
+        padding: 0 24px; color: #8ea6c8; font-size: 30px; font-weight: 700; gap: 14px; }
+      .srow:last-child { margin-bottom: 0; }
+      .srow.match { border: 2px solid var(--blue); color: var(--white); background: rgba(31,162,255,0.14); box-shadow: 0 0 30px rgba(31,162,255,0.25); }
+      .srow .chk { margin-left: auto; color: #2ee6a6; font-weight: 900; }
+      #scanLine { position: absolute; left: 0; right: 0; top: 0; height: 60px; z-index: 3; pointer-events: none;
+        background: linear-gradient(180deg, rgba(31,162,255,0) 0%, rgba(31,162,255,0.35) 70%, rgba(111,208,255,0.95) 100%);
+        box-shadow: 0 6px 22px rgba(31,162,255,0.6); }
+      .scan-arrow { margin: 26px 0 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .scan-arrow i { width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 26px solid var(--blue); opacity: 0.5; }
+      .scan-send { display: flex; align-items: center; gap: 16px; color: var(--tg); font-size: 36px; font-weight: 800; }
+      .scan-send svg { width: 46px; height: 46px; }
+
+      /* --- push notification (Telegram style) --- */
+      #pushNotif { position: absolute; left: 24px; right: 24px; top: 100px; z-index: 10; display: flex; align-items: center; gap: 20px;
+        background: rgba(20,28,46,0.92); border: 1.5px solid rgba(255,255,255,0.14); border-radius: 30px; padding: 22px 26px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+      #pushNotif .pn-icon { width: 88px; height: 88px; flex: none; border-radius: 22px; background:
+        linear-gradient(160deg, #10213f, #0a0f1e); border: 1.5px solid #2a3f66; display: grid; place-items: center; }
+      #pushNotif .pn-icon svg { width: 62px; height: 62px; }
+      #pushNotif .pn-body { flex: 1; min-width: 0; }
+      #pushNotif .pn-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+      #pushNotif .pn-title { font-size: 34px; font-weight: 800; color: var(--white); }
+      #pushNotif .pn-time { margin-left: auto; font-size: 26px; color: #7d8ba6; font-weight: 600; }
+      #pushNotif .pn-text { font-size: 32px; font-weight: 600; color: #d6e2f2; line-height: 1.25; }
+      #pushNotif .pn-text b { color: var(--white); }
+
+      /* callouts — TOP safe band */
+      .callout { position: absolute; left: 50%; z-index: 9; display: inline-flex; align-items: center; gap: 16px;
         background: rgba(10,20,40,0.92); border: 1.5px solid rgba(31,162,255,0.6); color: var(--white);
         font-size: 40px; font-weight: 700; padding: 20px 32px; border-radius: 22px;
         box-shadow: 0 14px 40px rgba(0,0,0,0.55), 0 0 44px rgba(31,162,255,0.2); white-space: nowrap; }
-      .callout .n { display: inline-grid; place-items: center; width: 54px; height: 54px; flex: none; border-radius: 50%;
-        background: var(--blue); color: #04101f; font-size: 36px; font-weight: 900; }
+      .callout .n { display: inline-grid; place-items: center; width: 54px; height: 54px; flex: none; border-radius: 50%; background: var(--blue); color: #04101f; font-size: 36px; font-weight: 900; }
       .callout small { display: block; font-size: 28px; color: var(--blue-lite); font-weight: 600; }
-      #c1, #c2, #c3 { top: 262px; }
-      #stat { position: absolute; left: 50%; top: 402px; z-index: 8; background: rgba(31,162,255,0.18);
-        border: 1.5px solid rgba(31,162,255,0.65); color: var(--white); font-size: 36px; font-weight: 800;
-        padding: 15px 32px; border-radius: 999px; white-space: nowrap; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+      #c1, #c2, #c3, #c4 { top: 262px; }
 
       /* ---------- scene C : CTA ---------- */
       #ctaWrap { position: absolute; left: 0; right: 0; top: 540px; display: flex; flex-direction: column; align-items: center; }
       #ctaLogo { width: 940px; height: auto; display: block; filter: drop-shadow(0 0 40px rgba(31,162,255,0.35)); }
       .cta { display: flex; flex-direction: column; align-items: center; gap: 26px; margin-top: 20px; }
-      .cta .arrow { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent;
-        border-bottom: 60px solid var(--blue); filter: drop-shadow(0 0 24px rgba(31,162,255,.7)); }
+      .cta .arrow { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 60px solid var(--blue); filter: drop-shadow(0 0 24px rgba(31,162,255,.7)); }
       .cta .txt { font-size: 66px; font-weight: 800; color: var(--white); text-align: center; }
       .cta .txt b { color: var(--blue); }
       .cta .pill { font-size: 46px; font-weight: 800; color: var(--muted); }
@@ -83,15 +110,17 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="11.0">
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="14.0">
 
       <!-- ============ background ============ -->
-      <div id="bg" class="clip" data-start="0" data-duration="11.0" data-track-index="0">
+      <div id="bg" class="clip" data-start="0" data-duration="14.0" data-track-index="0">
+        <div id="bgScan"></div>
+        <img id="bgLogo" src="assets/logo_bg.png" alt="" />
         <div id="glow"></div>
         <div id="grain"></div>
       </div>
 
-      <!-- ============ scene A : HOOK over auto24 footage ============ -->
+      <!-- ============ scene A : HOOK over auto24 ============ -->
       <div id="hookStage">
         <video id="s1video" class="clip" src="assets/auto24_intro.mp4" data-start="0" data-duration="2.25" data-track-index="1" muted playsinline></video>
         <div id="s1shade"></div>
@@ -110,21 +139,55 @@
       <div id="phoneStage">
         <div id="phone">
           <div class="screen">
-            <video id="screenVideo" class="clip" src="assets/phone_demo.mp4" data-start="2.5" data-duration="6.35" data-track-index="5" muted playsinline></video>
+            <video id="vidSetup" class="clip" src="assets/phone_setup.mp4" data-start="2.5" data-duration="3.9" data-track-index="5" muted playsinline></video>
+            <video id="vidChat"  class="clip" src="assets/phone_chat.mp4"  data-start="9.5" data-duration="2.25" data-track-index="5" muted playsinline></video>
+
+            <!-- scanning interstitial -->
+            <div id="scanScene">
+              <div class="scan-top"><span class="dot"></span><span>Сканирую auto24…</span></div>
+              <div class="scan-card">
+                <div class="hdr"><span class="chip"><img src="assets/auto24_logo2.png" alt="auto24"/></span></div>
+                <div class="srow"><span>Audi A6 · 14 900 €</span></div>
+                <div class="srow match" id="matchRow"><span>BMW X5 · 57 000 €</span><span class="chk">✓</span></div>
+                <div class="srow"><span>VW Passat · 9 500 €</span></div>
+                <div id="scanLine"></div>
+              </div>
+              <div class="scan-arrow" id="scanArrow"><i></i><i></i></div>
+              <div class="scan-send" id="scanSend">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M22 2 L11 13 M22 2 L15 22 L11 13 L2 9 Z" stroke="#2aabee" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+                Отправляю в Telegram
+              </div>
+            </div>
+
+            <!-- telegram push notification -->
+            <div id="pushNotif">
+              <div class="pn-icon">
+                <svg viewBox="0 0 100 100" fill="none">
+                  <circle cx="45" cy="45" r="30" stroke="#1fa2ff" stroke-width="6"/>
+                  <path d="M68 68 L86 86" stroke="#1fa2ff" stroke-width="8" stroke-linecap="round"/>
+                  <path d="M30 49 q4 -12 15 -12 q11 0 15 12" stroke="#6fd0ff" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="pn-body">
+                <div class="pn-head"><span class="pn-title">AutoScanner</span><span class="pn-time">сейчас</span></div>
+                <div class="pn-text">Новое объявление · <b>BMW X5 — 57 000 €</b></div>
+              </div>
+            </div>
           </div>
           <div class="notch"></div>
           <div class="rip" id="rip1"></div><div class="rip" id="rip1b"></div>
           <div class="rip" id="rip2"></div><div class="rip" id="rip2b"></div>
+          <div class="rip" id="rip3"></div><div class="rip" id="rip3b"></div>
         </div>
 
-        <div class="callout" id="c1"><span class="n">1</span><span>Настрой фильтр<small>марка · модель · цена</small></span></div>
-        <div class="callout" id="c2"><span class="n">2</span><span>Сохрани<small>за пару секунд</small></span></div>
-        <div class="callout" id="c3"><span class="n">3</span><span>Новые объявления — прямо в чат</span></div>
-        <div id="stat">Уже 88 объявлений по твоему фильтру</div>
+        <div class="callout" id="c1"><span class="n">1</span><span>Настрой фильтр<small>в Telegram-боте</small></span></div>
+        <div class="callout" id="c2"><span class="n">2</span><span>Сохрани фильтр<small>за пару секунд</small></span></div>
+        <div class="callout" id="c3"><span class="n">3</span><span>Бот сам сканирует auto24</span></div>
+        <div class="callout" id="c4"><span class="n">4</span><span>Объявление — сразу в Telegram</span></div>
       </div>
 
       <!-- ============ scene C : CTA ============ -->
-      <section id="s4" class="clip" data-start="8.9" data-duration="2.1" data-track-index="10">
+      <section id="s4" class="clip" data-start="12.0" data-duration="2.0" data-track-index="10">
         <div id="ctaWrap">
           <img id="ctaLogo" src="assets/logo.png" alt="AutoScanner" />
           <div class="cta" id="ctaBlock">
@@ -135,16 +198,19 @@
         </div>
       </section>
 
-      <!-- ============ SFX (offline bundled library) ============ -->
-      <audio id="sfxHook"   src="assets/sfx/whoosh-short.mp3"  data-start="0.45" data-duration="0.55" data-track-index="20" data-volume="0.4"></audio>
-      <audio id="sfxEnter"  src="assets/sfx/whoosh-short.mp3"  data-start="2.15" data-duration="0.55" data-track-index="21" data-volume="0.5"></audio>
-      <audio id="sfxTap1"   src="assets/sfx/click-soft.mp3"    data-start="3.58" data-duration="0.36" data-track-index="22" data-volume="0.6"></audio>
-      <audio id="sfxTap2"   src="assets/sfx/click-soft.mp3"    data-start="5.98" data-duration="0.36" data-track-index="23" data-volume="0.6"></audio>
-      <audio id="sfxMsg1"   src="assets/sfx/notification.mp3"  data-start="6.85" data-duration="1.10" data-track-index="24" data-volume="0.6"></audio>
-      <audio id="sfxMsg2"   src="assets/sfx/pop.mp3"           data-start="7.35" data-duration="0.50" data-track-index="25" data-volume="0.5"></audio>
-      <audio id="sfxMsg3"   src="assets/sfx/ping.mp3"          data-start="7.80" data-duration="0.80" data-track-index="26" data-volume="0.45"></audio>
-      <audio id="sfxSwap"   src="assets/sfx/whoosh.mp3"        data-start="8.58" data-duration="0.57" data-track-index="27" data-volume="0.55"></audio>
-      <audio id="sfxImpact" src="assets/sfx/impact-bass-1.mp3" data-start="8.95" data-duration="1.70" data-track-index="28" data-volume="0.5"></audio>
+      <!-- ============ SFX ============ -->
+      <audio id="sfx01" src="assets/sfx/whoosh-short.mp3"  data-start="0.45"  data-duration="0.55" data-track-index="20" data-volume="0.4"></audio>
+      <audio id="sfx02" src="assets/sfx/whoosh-short.mp3"  data-start="2.15"  data-duration="0.55" data-track-index="21" data-volume="0.5"></audio>
+      <audio id="sfx03" src="assets/sfx/click-soft.mp3"    data-start="3.55"  data-duration="0.36" data-track-index="22" data-volume="0.6"></audio>
+      <audio id="sfx04" src="assets/sfx/click-soft.mp3"    data-start="5.85"  data-duration="0.36" data-track-index="23" data-volume="0.6"></audio>
+      <audio id="sfx05" src="assets/sfx/ping.mp3"          data-start="6.55"  data-duration="0.80" data-track-index="24" data-volume="0.4"></audio>
+      <audio id="sfx06" src="assets/sfx/pop.mp3"           data-start="7.45"  data-duration="0.50" data-track-index="25" data-volume="0.5"></audio>
+      <audio id="sfx07" src="assets/sfx/notification.mp3"  data-start="8.45"  data-duration="1.10" data-track-index="26" data-volume="0.65"></audio>
+      <audio id="sfx08" src="assets/sfx/click-soft.mp3"    data-start="9.30"  data-duration="0.36" data-track-index="27" data-volume="0.6"></audio>
+      <audio id="sfx09" src="assets/sfx/whoosh.mp3"        data-start="9.50"  data-duration="0.57" data-track-index="28" data-volume="0.55"></audio>
+      <audio id="sfx10" src="assets/sfx/pop.mp3"           data-start="10.05" data-duration="0.50" data-track-index="29" data-volume="0.45"></audio>
+      <audio id="sfx11" src="assets/sfx/whoosh.mp3"        data-start="11.85" data-duration="0.57" data-track-index="30" data-volume="0.5"></audio>
+      <audio id="sfx12" src="assets/sfx/impact-bass-1.mp3" data-start="12.05" data-duration="1.70" data-track-index="31" data-volume="0.5"></audio>
 
     </div>
 
@@ -152,45 +218,79 @@
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      tl.fromTo("#glow", { scale: 0.92, opacity: 0.7 }, { scale: 1.12, opacity: 1, duration: 11.0, ease: "sine.inOut" }, 0);
+      tl.fromTo("#glow", { scale: 0.92, opacity: 0.7 }, { scale: 1.12, opacity: 1, duration: 14.0, ease: "sine.inOut" }, 0);
+      tl.to("#bgScan", { y: 46, duration: 14.0, ease: "none" }, 0);
 
-      /* ===== SCENE A : HOOK (from frame 1) over auto24 ===== */
+      /* ===== SCENE A : HOOK ===== */
       tl.fromTo("#s1video", { scale: 1.06 }, { scale: 1.16, duration: 2.4, ease: "none" }, 0);
       tl.from("#hk1", { y: 40, autoAlpha: 0, duration: 0.4, ease: "power3.out" }, 0.15);
       tl.from("#hk2", { y: 50, autoAlpha: 0, duration: 0.45, ease: "power3.out" }, 0.5);
       tl.from("#hksub", { y: 30, autoAlpha: 0, scale: 0.92, duration: 0.5, ease: "back.out(1.7)" }, 1.35);
-      tl.to("#hookStage", { autoAlpha: 0, duration: 0.4, ease: "power2.in" }, 2.1);
-      tl.set("#hookStage", { autoAlpha: 0 }, 2.5);
+      tl.to("#hookStage", { autoAlpha: 0, duration: 0.4, ease: "power2.in" }, 2.05);
+      tl.set("#hookStage", { autoAlpha: 0 }, 2.45);
 
       /* ===== SCENE B : phone demo ===== */
       tl.set("#phoneStage", { autoAlpha: 0 }, 0);
-      tl.set(["#c1","#c2","#c3","#stat"], { xPercent: -50, autoAlpha: 0 }, 0);
+      tl.set(["#c1","#c2","#c3","#c4"], { xPercent: -50, autoAlpha: 0 }, 0);
       tl.set("#phone", { xPercent: -50, yPercent: -50, y: 120, scale: 0.9 }, 0);
-      tl.to("#phoneStage", { autoAlpha: 1, duration: 0.01 }, 2.45);
-      tl.to("#phone", { y: 0, scale: 1, duration: 0.7, ease: "power3.out" }, 2.45);
+      tl.set("#scanScene", { autoAlpha: 0 }, 0);
+      tl.set("#pushNotif", { autoAlpha: 0, y: -170 }, 0);
+      tl.set("#matchRow", { autoAlpha: 0.35 }, 0);
+      tl.set("#scanLine", { autoAlpha: 0, y: -60 }, 0);
+      tl.set(["#scanArrow","#scanSend"], { autoAlpha: 0 }, 0);
 
-      /* tap 1 (filter) ~3.6 */
-      tl.fromTo("#rip1",  { scale: 0.25, autoAlpha: 0.95 }, { scale: 2.0, autoAlpha: 0, duration: 0.9, ease: "power2.out" }, 3.55);
-      tl.fromTo("#rip1b", { scale: 0.25, autoAlpha: 0.8 },  { scale: 2.5, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, 3.75);
-      tl.fromTo("#c1", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 3.05);
-      tl.to("#c1", { autoAlpha: 0, duration: 0.35 }, 4.6);
+      tl.to("#phoneStage", { autoAlpha: 1, duration: 0.01 }, 2.4);
+      tl.to("#phone", { y: 0, scale: 1, duration: 0.7, ease: "power3.out" }, 2.4);
 
-      /* tap 2 (save) ~6.0 */
-      tl.fromTo("#rip2",  { scale: 0.25, autoAlpha: 0.95 }, { scale: 2.0, autoAlpha: 0, duration: 0.9, ease: "power2.out" }, 5.95);
-      tl.fromTo("#rip2b", { scale: 0.25, autoAlpha: 0.8 },  { scale: 2.5, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, 6.15);
+      /* step 1 — filter (Telegram bot) */
+      tl.fromTo("#c1", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 3.0);
+      tl.fromTo("#rip1",  { scale: 0.25, autoAlpha: 0.95 }, { scale: 2.0, autoAlpha: 0, duration: 0.9, ease: "power2.out" }, 3.5);
+      tl.fromTo("#rip1b", { scale: 0.25, autoAlpha: 0.8 },  { scale: 2.5, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, 3.7);
+      tl.to("#c1", { autoAlpha: 0, duration: 0.35 }, 4.55);
+
+      /* step 2 — save */
       tl.fromTo("#c2", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 4.8);
-      tl.to("#c2", { autoAlpha: 0, duration: 0.35 }, 6.2);
+      tl.fromTo("#rip2",  { scale: 0.25, autoAlpha: 0.95 }, { scale: 2.0, autoAlpha: 0, duration: 0.9, ease: "power2.out" }, 5.8);
+      tl.fromTo("#rip2b", { scale: 0.25, autoAlpha: 0.8 },  { scale: 2.5, autoAlpha: 0, duration: 1.0, ease: "power2.out" }, 6.0);
+      tl.to("#c2", { autoAlpha: 0, duration: 0.35 }, 6.25);
 
-      /* PAYOFF : chat delivers listings (~6.8) */
-      tl.to("#phone", { scale: 1.05, duration: 1.4, ease: "power1.inOut" }, 6.7);
-      tl.fromTo("#c3", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, 6.6);
-      tl.fromTo("#stat", { y: 20, autoAlpha: 0, scale: 0.85 }, { y: 0, autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 7.1);
-      tl.to("#phoneStage", { autoAlpha: 0, duration: 0.4, ease: "power2.in" }, 8.62);
+      /* step 3 — SCAN interstitial */
+      tl.to("#scanScene", { autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 6.4);
+      tl.fromTo("#c3", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 6.6);
+      /* scan line sweeps over the card */
+      tl.to("#scanLine", { autoAlpha: 1, duration: 0.15 }, 6.7);
+      tl.fromTo("#scanLine", { y: -60 }, { y: 300, duration: 1.0, ease: "power1.inOut" }, 6.7);
+      tl.to("#scanLine", { autoAlpha: 0, duration: 0.2 }, 7.6);
+      /* match found */
+      tl.to("#matchRow", { autoAlpha: 1, duration: 0.25, ease: "power2.out" }, 7.4);
+      tl.fromTo("#matchRow", { scale: 0.98 }, { scale: 1.0, duration: 0.35, ease: "back.out(2.2)" }, 7.4);
+      /* flow → telegram */
+      tl.fromTo("#scanArrow", { autoAlpha: 0, y: -10 }, { autoAlpha: 1, y: 0, duration: 0.4 }, 7.7);
+      tl.to("#scanArrow i", { autoAlpha: 1, duration: 0.35, stagger: 0.12, yoyo: true, repeat: 2, ease: "sine.inOut" }, 7.7);
+      tl.fromTo("#scanSend", { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: "power2.out" }, 8.0);
+      tl.to("#c3", { autoAlpha: 0, duration: 0.35 }, 8.35);
+
+      /* push notification slides in + zoom toward it (dim the scan behind it) */
+      tl.to("#scanScene", { autoAlpha: 0.2, duration: 0.4, ease: "power2.out" }, 8.45);
+      tl.to("#pushNotif", { y: 0, autoAlpha: 1, duration: 0.55, ease: "back.out(1.5)" }, 8.45);
+      tl.to("#phone", { scale: 1.1, duration: 0.9, ease: "power2.inOut" }, 8.55);
+      /* tap the notification */
+      tl.fromTo("#rip3",  { scale: 0.25, autoAlpha: 0.95 }, { scale: 2.0, autoAlpha: 0, duration: 0.85, ease: "power2.out" }, 9.25);
+      tl.fromTo("#rip3b", { scale: 0.25, autoAlpha: 0.8 },  { scale: 2.5, autoAlpha: 0, duration: 0.95, ease: "power2.out" }, 9.42);
+
+      /* chat opens */
+      tl.to(["#scanScene","#pushNotif"], { autoAlpha: 0, duration: 0.3, ease: "power2.in" }, 9.5);
+      tl.set(["#scanScene","#pushNotif"], { autoAlpha: 0 }, 9.85);
+      tl.to("#phone", { scale: 1.0, duration: 0.6, ease: "power2.out" }, 9.55);
+      tl.fromTo("#c4", { y: -28, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, 9.95);
+      tl.to("#phone", { scale: 1.05, duration: 1.2, ease: "power1.inOut" }, 10.2);
+      tl.to("#c4", { autoAlpha: 0, duration: 0.35 }, 11.5);
+      tl.to("#phoneStage", { autoAlpha: 0, duration: 0.4, ease: "power2.in" }, 11.75);
 
       /* ===== SCENE C : CTA ===== */
-      tl.from("#ctaLogo", { y: 40, autoAlpha: 0, scale: 0.9, duration: 0.6, ease: "back.out(1.5)" }, 8.95);
-      tl.from("#ctaBlock", { y: 40, autoAlpha: 0, duration: 0.55, ease: "power3.out" }, 9.35);
-      tl.to("#ctaBlock .arrow", { y: -18, duration: 0.5, yoyo: true, repeat: 2, ease: "sine.inOut" }, 9.7);
+      tl.from("#ctaLogo", { y: 40, autoAlpha: 0, scale: 0.9, duration: 0.6, ease: "back.out(1.5)" }, 12.05);
+      tl.from("#ctaBlock", { y: 40, autoAlpha: 0, duration: 0.55, ease: "power3.out" }, 12.45);
+      tl.to("#ctaBlock .arrow", { y: -18, duration: 0.5, yoyo: true, repeat: 2, ease: "sine.inOut" }, 12.8);
 
       window.__timelines["main"] = tl;
     </script>
