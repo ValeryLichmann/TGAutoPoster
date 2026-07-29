@@ -32,9 +32,14 @@
         width: 1080px; height: 720px; z-index: 1;
         background: radial-gradient(52% 46% at 50% 50%, rgba(3,6,15,0.86) 0%, rgba(3,6,15,0.45) 55%, rgba(3,6,15,0) 78%); }
       #hookText { position: absolute; left: 60px; right: 60px; top: 560px; text-align: center; z-index: 2; }
-      .hook-l { font-size: 108px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px;
+      .hook-l { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px;
         text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
-      .hook-l .b { color: #8ecbff; text-shadow: 0 0 30px rgba(31,162,255,.9); }
+      .hook-row { display: flex; align-items: center; justify-content: center; gap: 26px; margin-top: 6px; }
+      .hook-row .rw { font-size: 100px; font-weight: 800; color: var(--white); line-height: 1.04; letter-spacing: -2px;
+        text-shadow: 0 6px 40px rgba(0,0,0,0.6); }
+      .a24chip { background: #fff; border-radius: 20px; padding: 16px 30px; display: inline-flex; align-items: center;
+        box-shadow: 0 10px 34px rgba(0,0,0,0.45); }
+      .a24chip img { height: 66px; display: block; }
       .hook-sub { margin-top: 40px; font-size: 52px; font-weight: 800; color: var(--blue-lite);
         text-shadow: 0 2px 24px rgba(0,0,0,0.7); }
 
@@ -93,7 +98,10 @@
         <div id="hookBackglow"></div>
         <div id="hookText">
           <div class="hook-l" id="hk1">Хватит листать</div>
-          <div class="hook-l" id="hk2"><span class="b">auto24</span> вручную</div>
+          <div class="hook-row" id="hk2">
+            <span class="a24chip"><img src="assets/auto24_logo.png" alt="auto24.ee" /></span>
+            <span class="rw">вручную</span>
+          </div>
           <div class="hook-sub" id="hksub">Лови новые тачки первым →</div>
         </div>
       </div>
@@ -126,6 +134,17 @@
           </div>
         </div>
       </section>
+
+      <!-- ============ SFX (offline bundled library) ============ -->
+      <audio id="sfxHook"   src="assets/sfx/whoosh-short.mp3"  data-start="0.45" data-duration="0.55" data-track-index="20" data-volume="0.4"></audio>
+      <audio id="sfxEnter"  src="assets/sfx/whoosh-short.mp3"  data-start="2.15" data-duration="0.55" data-track-index="21" data-volume="0.5"></audio>
+      <audio id="sfxTap1"   src="assets/sfx/click-soft.mp3"    data-start="3.58" data-duration="0.36" data-track-index="22" data-volume="0.6"></audio>
+      <audio id="sfxTap2"   src="assets/sfx/click-soft.mp3"    data-start="5.98" data-duration="0.36" data-track-index="23" data-volume="0.6"></audio>
+      <audio id="sfxMsg1"   src="assets/sfx/notification.mp3"  data-start="6.85" data-duration="1.10" data-track-index="24" data-volume="0.6"></audio>
+      <audio id="sfxMsg2"   src="assets/sfx/pop.mp3"           data-start="7.35" data-duration="0.50" data-track-index="25" data-volume="0.5"></audio>
+      <audio id="sfxMsg3"   src="assets/sfx/ping.mp3"          data-start="7.80" data-duration="0.80" data-track-index="26" data-volume="0.45"></audio>
+      <audio id="sfxSwap"   src="assets/sfx/whoosh.mp3"        data-start="8.58" data-duration="0.57" data-track-index="27" data-volume="0.55"></audio>
+      <audio id="sfxImpact" src="assets/sfx/impact-bass-1.mp3" data-start="8.95" data-duration="1.70" data-track-index="28" data-volume="0.5"></audio>
 
     </div>
 
