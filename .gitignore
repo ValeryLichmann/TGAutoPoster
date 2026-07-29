@@ -37,3 +37,4 @@ pnpm-debug.log*
 # hyperframes project heavy/derived files
 my-reel/assets/autoscreen_src.mp4
 my-reel/snapshots/
+my-reel/renders/work-*/
